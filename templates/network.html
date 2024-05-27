@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Network Information</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        table, th, td {
+            border: 1px solid black;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Network Information</h1>
+        <p>Private Network IP: {{ devices[0].network if devices else 'N/A' }}</p>
+        <h2>Registered Devices</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Device</th>
+                    <th>CPU Count</th>
+                    <th>Total Memory</th>
+                    <th>Available Memory</th>
+                    <th>GPU Count</th>
+                    <th>GPU Info</th>
+                    <th>System</th>
+                    <th>Node</th>
+                    <th>Release</th>
+                    <th>Version</th>
+                    <th>Machine</th>
+                    <th>Processor</th>
+                    <th>CPU Info</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for device in devices %}
+                <tr>
+                    <td>{{ loop.index }}</td>
+                    <td>{{ device.device_info.cpu_count }}</td>
+                    <td>{{ device.device_info.total_memory // (1024 ** 3) }} GB</td>
+                    <td>{{ device.device_info.available_memory // (1024 ** 3) }} GB</td>
+                    <td>{{ device.device_info.gpu_count }}</td>
+                    <td>
+                        <ul>
+                            {% for gpu in device.device_info.gpu_info %}
+                            <li>{{ gpu.name }} - Total: {{ gpu.total_memory }} MB, Available: {{ gpu.available_memory }} MB</li>
+                            {% endfor %}
+                        </ul>
+                    </td>
+                    <td>{{ device.device_info.system_info.system }}</td>
+                    <td>{{ device.device_info.system_info.node }}</td>
+                    <td>{{ device.device_info.system_info.release }}</td>
+                    <td>{{ device.device_info.system_info.version }}</td>
+                    <td>{{ device.device_info.system_info.machine }}</td>
+                    <td>{{ device.device_info.system_info.processor }}</td>
+                    <td>
+                        <ul>
+                            {% for key, value in device.device_info.system_info.cpu_info.items() %}
+                            <li>{{ key }}: {{ value }}</li>
+                            {% endfor %}
+                        </ul>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>
