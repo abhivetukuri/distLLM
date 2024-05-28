@@ -48,7 +48,6 @@
     <script>
         function registerDevice() {
             const network = document.getElementById('network').value;
-            console.log('Network IP:', network); // Debug log
             fetch('/register', {
                 method: 'POST',
                 headers: {
@@ -56,15 +55,10 @@
                 },
                 body: JSON.stringify({ network })
             })
-            .then(response => {
-                console.log('Response:', response); // Debug log
-                return response.json();
-            })
+            .then(response => response.json())
             .then(data => {
-                console.log('Response data:', data); // Debug log
                 alert(data.message);
                 if (data.message === 'Device registered successfully') {
-                    console.log('Redirecting to /network'); // Debug log
                     window.location.href = '/network';
                 }
             })

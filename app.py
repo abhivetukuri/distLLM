@@ -1,81 +1,72 @@
-from flask import Flask, request, jsonify, render_template
-import ray
+from flask import Flask, request, render_template, redirect, url_for, jsonify
+import subprocess
+import os
 import psutil
-import GPUtil
 import platform
 import cpuinfo
 
 app = Flask(__name__)
-
-# Global variable to store device information
 devices = []
 
-def initialize_ray(network):
-    if network:
-        ray.init(address=network)
-    else:
-        ray.init(ignore_reinit_error=True)
+# Function to run shell commands
+def run_command(command):
+    result = subprocess.run(command, shell=True, capture_output=True, text=True)
+    return result.stdout, result.stderr
+
+# Function to gather device information
+def get_device_info():
+    device_info = {
+        'cpu_count': psutil.cpu_count(),
+        'total_memory': psutil.virtual_memory().total,
+        'available_memory': psutil.virtual_memory().available,
+        'gpu_count': 0,  # Assuming no GPU for now
+        'gpu_info': [],  # Assuming no GPU info for now
+        'system_info': {
+            'system': platform.system(),
+            'node': platform.node(),
+            'release': platform.release(),
+            'version': platform.version(),
+            'machine': platform.machine(),
+            'processor': platform.processor(),
+            'cpu_info': cpuinfo.get_cpu_info(),
+        }
+    }
+    return device_info
 
 @app.route('/')
-def home():
+def index():
     return render_template('index.html')
 
 @app.route('/register', methods=['POST'])
-def register_device():
+def register():
     data = request.get_json()
-    network = data.get('network', None)
-    
-    try:
-        initialize_ray(network)
-        
-        @ray.remote
-        def get_device_info():
-            cpu_count = psutil.cpu_count()
-            memory_info = psutil.virtual_memory()
-            gpus = GPUtil.getGPUs()
-            gpu_count = len(gpus)
-            gpu_info = [{'name': gpu.name, 'total_memory': gpu.memoryTotal, 'available_memory': gpu.memoryFree} for gpu in gpus]
-            system_info = {
-                'system': platform.system(),
-                'node': platform.node(),
-                'release': platform.release(),
-                'version': platform.version(),
-                'machine': platform.machine(),
-                'processor': platform.processor(),
-                'cpu_info': cpuinfo.get_cpu_info()
-            }
-            return {
-                'cpu_count': cpu_count,
-                'total_memory': memory_info.total,
-                'available_memory': memory_info.available,
-                'gpu_count': gpu_count,
-                'gpu_info': gpu_info,
-                'system_info': system_info
-            }
-        
-        device_info = ray.get(get_device_info.remote())
-        devices.append({
-            'network': network or 'localhost',
-            'device_info': device_info
-        })
-        return jsonify({'message': 'Device registered successfully', 'device_info': device_info}), 200
-    
-    except Exception as e:
-        return jsonify({'message': 'Error registering device', 'error': str(e)}), 500
+    network_ip = data.get('network')
+
+    if not network_ip:
+        # Start as head node
+        os.environ['RAY_ENABLE_WINDOWS_OR_OSX_CLUSTER'] = '1'
+        command = "ray start --head --port=6375"
+        stdout, stderr = run_command(command)
+        network_ip = "192.168.1.225:6375"  # Assuming this IP address, adjust as necessary
+    else:
+        # Join an existing cluster
+        os.environ['RAY_ENABLE_WINDOWS_OR_OSX_CLUSTER'] = '1'
+        command = f"ray start --address='{network_ip}'"
+        stdout, stderr = run_command(command)
+
+    device_info = get_device_info()
+    devices.append({'network': network_ip, 'device_info': device_info})
+
+    return jsonify({
+        'message': 'Device registered successfully',
+        'network_ip': network_ip,
+        'stdout': stdout,
+        'stderr': stderr
+    })
 
 @app.route('/network')
-def network_info():
-    all_devices = devices
-    try:
-        @ray.remote
-        def get_all_devices():
-            return devices
-
-        all_devices = ray.get(get_all_devices.remote())
-    except Exception as e:
-        print(f"Error retrieving devices: {e}")
-
-    return render_template('network.html', devices=all_devices)
+def network():
+    return render_template('network.html', devices=devices)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001)
